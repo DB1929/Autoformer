@@ -29,10 +29,12 @@ class TokenEmbedding(nn.Module):
     def __init__(self, c_in, d_model):
         super(TokenEmbedding, self).__init__()
         padding = 1 if torch.__version__ >= '1.5.0' else 2
+        # 使用三次插值的1d卷积进行上采样来embedding
         self.tokenConv = nn.Conv1d(in_channels=c_in, out_channels=d_model,
                                    kernel_size=3, padding=padding, padding_mode='circular', bias=False)
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
+                # 使用kaiming方式，初始化卷积权重
                 nn.init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='leaky_relu')
 
     def forward(self, x):
@@ -121,14 +123,17 @@ class DataEmbedding(nn.Module):
 class DataEmbedding_wo_pos(nn.Module):
     def __init__(self, c_in, d_model, embed_type='fixed', freq='h', dropout=0.1):
         super(DataEmbedding_wo_pos, self).__init__()
-
+        # 使用1d卷积，将c_in长度映射到d_model长度
         self.value_embedding = TokenEmbedding(c_in=c_in, d_model=d_model)
+        # position embedding
         self.position_embedding = PositionalEmbedding(d_model=d_model)
+        # temporal_embedding，即对x_mark做embedding，从4到512,使用全连接
         self.temporal_embedding = TemporalEmbedding(d_model=d_model, embed_type=embed_type,
                                                     freq=freq) if embed_type != 'timeF' else TimeFeatureEmbedding(
             d_model=d_model, embed_type=embed_type, freq=freq)
         self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, x, x_mark):
+        # 这里可以看出没有用position_embedding
         x = self.value_embedding(x) + self.temporal_embedding(x_mark)
         return self.dropout(x)

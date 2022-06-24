@@ -246,6 +246,7 @@ class Dataset_Custom(Dataset):
             df_data = df_raw[[self.target]]
 
         if self.scale:
+            # 用训练集的scale来归一化整个数据集
             train_data = df_data[border1s[0]:border2s[0]]
             self.scaler.fit(train_data.values)
             data = self.scaler.transform(df_data.values)
@@ -269,6 +270,7 @@ class Dataset_Custom(Dataset):
         self.data_stamp = data_stamp
 
     def __getitem__(self, index):
+        # 窗口长度
         s_begin = index
         s_end = s_begin + self.seq_len
         r_begin = s_end - self.label_len

@@ -45,6 +45,7 @@ class series_decomp(nn.Module):
         self.moving_avg = moving_avg(kernel_size, stride=1)
 
     def forward(self, x):
+        # 这里把moving_mean当作趋势项
         moving_mean = self.moving_avg(x)
         res = x - moving_mean
         return res, moving_mean
@@ -70,7 +71,9 @@ class EncoderLayer(nn.Module):
             x, x, x,
             attn_mask=attn_mask
         )
+        # 残差连接
         x = x + self.dropout(new_x)
+        # 这里是encoder的第一次分解
         x, _ = self.decomp1(x)
         y = x
         y = self.dropout(self.activation(self.conv1(y.transpose(-1, 1))))

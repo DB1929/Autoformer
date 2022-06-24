@@ -109,7 +109,7 @@ class AutoCorrelation(nn.Module):
             values = values[:, :L, :, :]
             keys = keys[:, :L, :, :]
 
-        # period-based dependencies
+        # period-based dependencies 通过傅里叶变换与逆变换，可以计算出序列依赖
         q_fft = torch.fft.rfft(queries.permute(0, 2, 3, 1).contiguous(), dim=-1)
         k_fft = torch.fft.rfft(keys.permute(0, 2, 3, 1).contiguous(), dim=-1)
         res = q_fft * torch.conj(k_fft)

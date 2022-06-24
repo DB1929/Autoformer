@@ -22,17 +22,19 @@ class Model(nn.Module):
 
         # Decomp
         kernel_size = configs.moving_avg
-        self.decomp = series_decomp(kernel_size)
+        self.decomp = series_decomp(kernel_size) # 分解模块
 
         # Embedding
         # The series-wise connection inherently contains the sequential information.
         # Thus, we can discard the position embedding of transformers.
+        # feature_embedding + time_embedding
         self.enc_embedding = DataEmbedding_wo_pos(configs.enc_in, configs.d_model, configs.embed, configs.freq,
                                                   configs.dropout)
         self.dec_embedding = DataEmbedding_wo_pos(configs.dec_in, configs.d_model, configs.embed, configs.freq,
                                                   configs.dropout)
 
-        # Encoder
+        # Encoder 由多个EncoderLayer构成，每个EncoderLayer包含一个AutoCorrelationLayer
+        # 和两个series_decomp以及全连接，AutoCorrelationLayer包含attention计算
         self.encoder = Encoder(
             [
                 EncoderLayer(
@@ -49,7 +51,8 @@ class Model(nn.Module):
             ],
             norm_layer=my_Layernorm(configs.d_model)
         )
-        # Decoder
+        # Decoder DecoderLayer，包含两个AutoCorrelationLayer，
+        # 三个series_decomp和两个series_decomp以及全连接
         self.decoder = Decoder(
             [
                 DecoderLayer(
@@ -77,17 +80,23 @@ class Model(nn.Module):
     def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec,
                 enc_self_mask=None, dec_self_mask=None, dec_enc_mask=None):
         # decomp init
+        # 获取每个样本的均值，用于构建X_det
         mean = torch.mean(x_enc, dim=1).unsqueeze(1).repeat(1, self.pred_len, 1)
         zeros = torch.zeros([x_dec.shape[0], self.pred_len, x_dec.shape[2]], device=x_enc.device)
+        # 初始分解项
         seasonal_init, trend_init = self.decomp(x_enc)
+
         # decoder input
+        # 用X_en分解出来的趋势项的后半部分 cat 长度为pred_len的均值项
         trend_init = torch.cat([trend_init[:, -self.label_len:, :], mean], dim=1)
+        # 用X_en分解出来的周期项的后半部分 cat 长度为pred_len的零值项
         seasonal_init = torch.cat([seasonal_init[:, -self.label_len:, :], zeros], dim=1)
-        # enc
+
+        # enc 获取encoder的输出，也就是周期项，用于下游的decoder使用
         enc_out = self.enc_embedding(x_enc, x_mark_enc)
         enc_out, attns = self.encoder(enc_out, attn_mask=enc_self_mask)
         # dec
-        dec_out = self.dec_embedding(seasonal_init, x_mark_dec)
+        dec_out = self.dec_embedding(seasonal_init, x_mark_dec) # 对decoder输入的周期项进行embed
         seasonal_part, trend_part = self.decoder(dec_out, enc_out, x_mask=dec_self_mask, cross_mask=dec_enc_mask,
                                                  trend=trend_init)
         # final

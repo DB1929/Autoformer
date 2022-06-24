@@ -8,6 +8,11 @@ __pycache__/
 
 # Distribution / packaging
 .Python
+wandb/
+checkpoints/
+dataset/
+test_results/
+results/
 build/
 develop-eggs/
 dist/
